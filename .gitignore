@@ -9,4 +9,5 @@ dist/
 # Environment and secrets
 .env
 backend/.env
-backend/drive-service-account.json
+frontend/build/
+frontend/dist/
