@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic-settings
+psycopg2-binary      # for Postgres
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib
+python-multipart
