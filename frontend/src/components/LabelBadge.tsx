@@ -40,8 +40,8 @@ const sizeConfig = {
   lg: {
     // no padding classes here, we will set them with inline style
     container: "",
-    label: "text-2xl",
-    description: "text-base",
+    label: "text-3xl",
+    description: "text-lg",
   },
 };
 
