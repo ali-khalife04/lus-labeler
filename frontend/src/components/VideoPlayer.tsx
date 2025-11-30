@@ -68,7 +68,7 @@ export function VideoPlayer({
       )}
 
       <div
-        className={`relative w-full h-[80vh] bg-black overflow-hidden transition-all ${
+        className={`relative w-full h-full bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
         }`}
         style={{ borderRadius: "6px" }}
