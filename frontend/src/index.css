@@ -2371,3 +2371,15 @@ html {
 
 
 
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden; /* no global scrollbar */
+}
+
+#root {
+  height: 100%;
+}
