@@ -704,7 +704,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-gray-200 px-3 py-2">
+      <header className="flex-shrink-0 border-b border-gray-200 px-4 py-2">
         <div className="flex items-center justify-between">
           <h1 className="text-gray-800">
             ICRA 2026 Paper Data Validation for LUS Contact Detection
@@ -732,7 +732,7 @@ export default function App() {
 
       {/* Change password panel */}
       {showChangePassword && (
-        <div className="flex-shrink-0 border-b border-gray-200 px-3 py-2 bg-gray-50">
+        <div className="flex-shrink-0 border-b border-gray-200 px-4 py-3 bg-gray-50">
           <div className="max-w-xl">
             <h2 className="text-sm font-medium text-gray-800 mb-2">
               Change password for {currentUser}
@@ -780,7 +780,7 @@ export default function App() {
       {/* Main 3-panel layout */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left panel */}
-        <div className="w-50 border-r border-gray-200 p-2 flex-shrink-0 space-y-2 overflow-y-auto no-scrollbar">
+        <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 space-y-2.5 overflow-y-auto no-scrollbar">
           <PatientSelector
             selectedPatient={currentPatientId}
             patients={patientIds}
@@ -797,7 +797,7 @@ export default function App() {
         </div>
 
         {/* Center panel */}
-        <div className="flex-1 p-2 flex flex-col min-w-0 relative overflow-hidden">
+        <div className="flex-1 p-3 flex flex-col min-w-0 relative overflow-hidden">
           {jumpHighlight && (
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-green-600 text-white px-6 py-2 rounded-md shadow-lg animate-pulse-subtle">
               <div className="flex items-center gap-2">
@@ -811,54 +811,46 @@ export default function App() {
           )}
 
           {hasSequences ? (
-            <div className="flex-1 flex flex-col min-h-0 space-y-2">
-              {/* Smaller video window, centered */}
-              <div className="flex-none flex items-center justify-center">
-                <div className="w-full max-w-3xl" style={{ maxHeight: "32vh" }}>
-                  <VideoPlayer
-                    originalLabel={currentSequence!.originalLabel}
-                    userCorrection={currentUserCorrection}
-                    isPlaying={isPlaying}
-                    isRepeating={isRepeating}
-                    videoUrl={currentSequence!.videoUrl}
-                    jumpHighlight={jumpHighlight}
-                    onVideoRef={(ref) => {
-                      videoRef.current = ref;
-                    }}
-                    onEnded={handleVideoEnded}
-                  />
-                </div>
-              </div>
+            <div className="flex-1 flex flex-col justify-center space-y-1 min-h-0">
+              <VideoPlayer
+                originalLabel={currentSequence!.originalLabel}
+                userCorrection={currentUserCorrection}
+                isPlaying={isPlaying}
+                isRepeating={isRepeating}
+                videoUrl={currentSequence!.videoUrl}
+                jumpHighlight={jumpHighlight}
+                onVideoRef={(ref) => {
+                  videoRef.current = ref;
+                }}
+                onEnded={handleVideoEnded}
+              />
 
-              {/* Controls block below video */}
-              <div className="flex-none space-y-1">
-                <NavigationControls
-                  currentSequence={safeSequenceIndex + 1}
-                  totalSequences={totalSequences}
-                  isPlaying={isPlaying}
-                  onSequenceChange={handleSequenceChange}
-                  jumpHighlight={jumpHighlight}
-                />
+              <NavigationControls
+                currentSequence={safeSequenceIndex + 1}
+                totalSequences={totalSequences}
+                isPlaying={isPlaying}
+                onSequenceChange={handleSequenceChange}
+                jumpHighlight={jumpHighlight}
+              />
 
-                <VideoControls
-                  isPlaying={isPlaying}
-                  isRepeating={isRepeating}
-                  onPlay={handlePlay}
-                  onPause={handlePause}
-                  onToggleRepeat={handleToggleRepeat}
-                  currentSequence={safeSequenceIndex + 1}
-                  totalSequences={totalSequences}
-                  onPrevious={handlePrevSequence}
-                  onNext={handleNextSequence}
-                />
+              <VideoControls
+                isPlaying={isPlaying}
+                isRepeating={isRepeating}
+                onPlay={handlePlay}
+                onPause={handlePause}
+                onToggleRepeat={handleToggleRepeat}
+                currentSequence={safeSequenceIndex + 1}
+                totalSequences={totalSequences}
+                onPrevious={handlePrevSequence}
+                onNext={handleNextSequence}
+              />
 
-                <CorrectionSelector
-                  originalLabel={currentSequence!.originalLabel}
-                  userCorrection={currentUserCorrection}
-                  onSelectCorrection={handleCorrectionSelect}
-                  isPlaying={isPlaying}
-                />
-              </div>
+              <CorrectionSelector
+                originalLabel={currentSequence!.originalLabel}
+                userCorrection={currentUserCorrection}
+                onSelectCorrection={handleCorrectionSelect}
+                isPlaying={isPlaying}
+              />
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
@@ -875,7 +867,7 @@ export default function App() {
         {/* Right panel */}
         {isHistoryVisible && (
           <div className="w-80 border-l border-gray-200 flex flex-col flex-shrink-0">
-            <div className="p-2 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
+            <div className="p-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
               <p className="text-gray-700 font-medium">{currentUser}</p>
               <button
                 onClick={() => setIsHistoryVisible(false)}
