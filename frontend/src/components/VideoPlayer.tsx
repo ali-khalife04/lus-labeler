@@ -68,10 +68,10 @@ export function VideoPlayer({
       )}
 
       <div
-        className={`relative w-full h-70 bg-black overflow-hidden transition-all ${
+        className={`relative w-full aspect-video bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
         }`}
-        style={{ borderRadius: "6px" }}
+        style={{ borderRadius: "6px", maxHeight: "32vh" }}
       >
         {/* Video Display */}
         <video
@@ -80,7 +80,6 @@ export function VideoPlayer({
           className="w-full h-full object-contain bg-black"
           controls={false}
           loop={isRepeating}
-          // We do not rely on autoPlay alone; we control play()/pause() via isPlaying effect
           onEnded={onEnded}
         />
 

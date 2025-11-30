@@ -814,7 +814,7 @@ export default function App() {
             <div className="flex-1 flex flex-col min-h-0 space-y-2">
               {/* Smaller video window, centered */}
               <div className="flex-none flex items-center justify-center">
-                <div className="w-full max-w-4xl h-[50vh]">
+                <div className="w-full max-w-3xl" style={{ maxHeight: "32vh" }}>
                   <VideoPlayer
                     originalLabel={currentSequence!.originalLabel}
                     userCorrection={currentUserCorrection}
