@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Node / Vite
+node_modules/
+dist/
+
+# Environment and secrets
+.env
+backend/.env
+frontend/build/
+frontend/dist/
