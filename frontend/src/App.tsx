@@ -44,8 +44,16 @@ interface HistoryEntry {
   originalClass: LabelType;
 }
 
+// Map backend history entry into frontend HistoryEntry
+// Backend:
+//   patient_id: string (e.g. "Patient_1")
+//   sequence_id: "<classInitial>-<seqNumber>" (e.g. "H-001")
+// Frontend display:
+//   sequenceId: "1-H-001"
 function mapBackendHistoryEntry(e: any): HistoryEntry {
   const patientId = String(e.patient_id || "");
+
+  // Extract patient number from patientId (e.g. "Patient_1" -> 1)
   const m = patientId.match(/\d+/);
   const patientNumber = m ? parseInt(m[0], 10) || 1 : 1;
 
@@ -60,6 +68,7 @@ function mapBackendHistoryEntry(e: any): HistoryEntry {
   };
   const originalClass = classMap[classInitial] || "H-LUS";
 
+  // Display string: "1-H-001"
   const displaySequenceId = `${patientNumber}-${e.sequence_id}`;
 
   return {
@@ -81,23 +90,28 @@ type PlaybackMode = "idle" | "play-all" | "repeat";
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
 
+  // Users fetched from backend
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
 
+  // Patients fetched from backend
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [patientsError, setPatientsError] = useState<string | null>(null);
 
+  // Playback + selection state
   const [currentPatientId, setCurrentPatientId] = useState<string | null>(null);
   const [currentClass, setCurrentClass] = useState<LabelType>("H-LUS");
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [currentSequenceIndex, setCurrentSequenceIndex] = useState(0);
   const [mode, setMode] = useState<PlaybackMode>("idle");
   const [jumpHighlight, setJumpHighlight] = useState(false);
-  const [pendingHistoryJump, setPendingHistoryJump] =
-    useState<number | null>(null);
+  const [pendingHistoryJump, setPendingHistoryJump] = useState<number | null>(
+    null,
+  );
 
+  // These are derived booleans used by child components
   const isPlaying = mode !== "idle";
   const isRepeating = mode === "repeat";
 
@@ -105,6 +119,7 @@ export default function App() {
   const modeRef = useRef<PlaybackMode>("idle");
   const hasSequencesRef = useRef<boolean>(false);
 
+  // Change-password UI state
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [cpOld, setCpOld] = useState("");
   const [cpNew, setCpNew] = useState("");
@@ -113,11 +128,13 @@ export default function App() {
   const [cpSuccess, setCpSuccess] = useState<string | null>(null);
   const [cpLoading, setCpLoading] = useState(false);
 
-  const [userHistory, setUserHistory] = useState<
-    Record<string, HistoryEntry[]>
-  >({});
+  // User history (per annotator)
+  const [userHistory, setUserHistory] = useState<Record<string, HistoryEntry[]>>(
+    {},
+  );
   const [isHistoryVisible, setIsHistoryVisible] = useState(true);
 
+  // Keep refs in sync with state for keyboard shortcuts
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
@@ -126,7 +143,9 @@ export default function App() {
     hasSequencesRef.current = sequences.length > 0;
   }, [sequences.length]);
 
-  // Users
+  // ===========================
+  // Fetch users
+  // ===========================
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -161,7 +180,9 @@ export default function App() {
     fetchUsers();
   }, []);
 
-  // Patients
+  // ===========================
+  // Fetch patients
+  // ===========================
   useEffect(() => {
     const fetchPatients = async () => {
       try {
@@ -177,6 +198,7 @@ export default function App() {
         setPatients(mapped);
         setPatientsError(null);
 
+        // If nothing selected yet, pick the first patient
         if (!currentPatientId && mapped.length > 0) {
           setCurrentPatientId(mapped[0].patient_id);
         }
@@ -194,7 +216,9 @@ export default function App() {
 
   const patientIds = patients.map((p) => p.patient_id);
 
-  // Sequences for patient/class
+  // ===========================
+  // Fetch videos when patient/class changes
+  // ===========================
   useEffect(() => {
     const loadVideos = async () => {
       if (!currentPatientId) return;
@@ -208,10 +232,7 @@ export default function App() {
         if (!res.ok) {
           throw new Error(`Failed to fetch videos: ${res.status}`);
         }
-        const data = (await res.json()) as Array<{
-          file_name: string;
-          url: string;
-        }>;
+        const data = (await res.json()) as Array<{ file_name: string; url: string }>;
 
         const newSequences: Sequence[] = data.map((v, index) => ({
           id: index + 1,
@@ -253,7 +274,9 @@ export default function App() {
       ? currentSequence.userCorrections[currentUser]
       : undefined;
 
+  // ===========================
   // Keyboard shortcuts
+  // ===========================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
@@ -287,7 +310,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Login
+  // ===========================
+  // Login + history loading
+  // ===========================
   const handleLogin = (userName: string) => {
     setCurrentUser(userName);
 
@@ -316,7 +341,9 @@ export default function App() {
       });
   };
 
+  // ===========================
   // Selection handlers
+  // ===========================
   const handlePatientChange = (patientId: string) => {
     setCurrentPatientId(patientId);
     setCurrentSequenceIndex(0);
@@ -349,7 +376,9 @@ export default function App() {
     }
   };
 
+  // ===========================
   // Playback handlers
+  // ===========================
   const handlePlay = () => {
     if (!hasSequences) return;
     setMode("play-all");
@@ -406,12 +435,16 @@ export default function App() {
       if (safeSequenceIndex < totalSequences - 1) {
         setCurrentSequenceIndex((prev) => prev + 1);
       } else {
+        // Last video of the class, stop
         setMode("idle");
       }
     }
+    // For "repeat", we rely on the <video loop> attribute
   };
 
+  // ===========================
   // Corrections + history
+  // ===========================
   const handleCorrectionSelect = (label: LabelType) => {
     if (!currentUser || !currentSequence || !currentPatientId) return;
 
@@ -421,6 +454,7 @@ export default function App() {
 
     if (previousLabel === label) return;
 
+    // Update corrections in local sequence list
     setSequences((prev) => {
       if (!prev.length) return prev;
       const copy = [...prev];
@@ -447,12 +481,16 @@ export default function App() {
       "I-LUS": "I",
     };
 
+    // Raw sequence id stored in DB, e.g. "H-001"
     const rawSequenceId = `${classInitialMap[currentSequence.originalLabel]}-${String(
       currentSequence.id,
     ).padStart(3, "0")}`;
 
+    // Extract patient number from currentPatientId, e.g. "Patient_1" -> 1
     const m = currentPatientId.match(/\d+/);
     const patientNumber = m ? parseInt(m[0], 10) || 1 : 1;
+
+    // Display sequence id in history: "1-H-001"
     const displaySequenceId = `${patientNumber}-${rawSequenceId}`;
 
     const tempId = Date.now();
@@ -475,6 +513,7 @@ export default function App() {
       [currentUser]: [newEntry, ...(prev[currentUser] || [])],
     }));
 
+    // Persist to backend with the RAW sequence id (without patient number)
     fetch(`${API_BASE_URL}/history`, {
       method: "POST",
       headers: {
@@ -515,6 +554,7 @@ export default function App() {
   };
 
   const handleHistoryEntryClick = (entry: HistoryEntry) => {
+    // Set target patient + class, then jump to sequence when videos load
     setCurrentPatientId(entry.patientId);
     setCurrentClass(entry.originalClass);
     setPendingHistoryJump(entry.sequenceNumber);
@@ -526,6 +566,7 @@ export default function App() {
     }
   };
 
+  // When we have a pending history jump and sequences are loaded, jump to the right index
   useEffect(() => {
     if (pendingHistoryJump == null) return;
     if (!hasSequences) return;
@@ -557,6 +598,8 @@ export default function App() {
         prev[currentUser]?.filter((e) => e.id !== entry.id) || [],
     }));
 
+    // If the deleted entry refers to the currently loaded patient + class,
+    // also drop the userCorrection locally for that sequence.
     if (
       currentPatientId === entry.patientId &&
       currentClass === entry.originalClass
@@ -592,6 +635,9 @@ export default function App() {
     setCpSuccess(null);
   };
 
+  // ===========================
+  // Password change
+  // ===========================
   const handleChangePasswordSubmit = async () => {
     if (!currentUser) return;
 
@@ -643,7 +689,9 @@ export default function App() {
     }
   };
 
+  // ===========================
   // Login gate
+  // ===========================
   if (!currentUser) {
     if (loadingUsers) {
       return (
@@ -679,6 +727,7 @@ export default function App() {
 
   const currentUserHistory = userHistory[currentUser] || [];
 
+  // If patients failed to load
   if (patientsError) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white gap-4">
@@ -692,6 +741,7 @@ export default function App() {
     );
   }
 
+  // If still loading patients
   if (loadingPatients || !currentPatientId) {
     return (
       <div className="h-screen flex items-center justify-center bg-white">
@@ -700,11 +750,10 @@ export default function App() {
     );
   }
 
-  // Full-screen, one-page layout
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden bg-white">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-gray-200 px-4 py-2">
+      <header className="border-b border-gray-200 px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h1 className="text-gray-800">
             ICRA 2026 Paper Data Validation for LUS Contact Detection
@@ -732,7 +781,7 @@ export default function App() {
 
       {/* Change password panel */}
       {showChangePassword && (
-        <div className="flex-shrink-0 border-b border-gray-200 px-4 py-3 bg-gray-50">
+        <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex-shrink-0">
           <div className="max-w-xl">
             <h2 className="text-sm font-medium text-gray-800 mb-2">
               Change password for {currentUser}
@@ -777,10 +826,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Main 3-panel layout */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left panel */}
-        <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 space-y-2.5 overflow-y-auto no-scrollbar">
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* Left Panel - Patient & Class Filter */}
+        <div className="w-50 border-r border-gray-200 p-2.5 overflow-y-auto flex-shrink-0 space-y-2.5">
           <PatientSelector
             selectedPatient={currentPatientId}
             patients={patientIds}
@@ -796,8 +845,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Center panel */}
-        <div className="flex-1 p-3 flex flex-col min-w-0 relative overflow-hidden">
+        {/* Center Panel - Video & Controls */}
+        <div className="flex-1 p-3 overflow-y-auto overflow-x-hidden flex flex-col min-w-0 relative">
           {jumpHighlight && (
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-green-600 text-white px-6 py-2 rounded-md shadow-lg animate-pulse-subtle">
               <div className="flex items-center gap-2">
@@ -811,7 +860,7 @@ export default function App() {
           )}
 
           {hasSequences ? (
-            <div className="flex-1 flex flex-col justify-center space-y-1 min-h-0">
+            <div className="w-full space-y-1 flex-1 flex flex-col justify-center">
               <VideoPlayer
                 originalLabel={currentSequence!.originalLabel}
                 userCorrection={currentUserCorrection}
@@ -853,7 +902,7 @@ export default function App() {
               />
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="w-full flex-1 flex items-center justify-center">
               <div className="text-center text-gray-400">
                 <p className="text-lg">No sequences in this class</p>
                 <p className="text-sm mt-2">
@@ -864,7 +913,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Right panel */}
+        {/* Right Panel - History Log */}
         {isHistoryVisible && (
           <div className="w-80 border-l border-gray-200 flex flex-col flex-shrink-0">
             <div className="p-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
@@ -876,7 +925,7 @@ export default function App() {
                 Hide History
               </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+            <div className="flex-1 overflow-hidden min-h-0">
               <HistoryLog
                 entries={currentUserHistory}
                 onSelectEntry={handleHistoryEntryClick}
