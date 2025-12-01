@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import { LabelBadge } from "./LabelBadge";
 
+type LabelType = "H-LUS" | "C-LUS" | "I-LUS";
+
 interface VideoPlayerProps {
-  originalLabel: "H-LUS" | "C-LUS" | "I-LUS";
-  userCorrection?: "H-LUS" | "C-LUS" | "I-LUS";
+  originalLabel: LabelType;
+  userCorrection?: LabelType;
   isPlaying: boolean;
   isRepeating: boolean;
   videoUrl: string;
@@ -38,25 +40,23 @@ export function VideoPlayer({
     if (!video) return;
 
     if (isPlaying) {
-      video
-        .play()
-        .catch(() => {
-          // Autoplay might be blocked; user will need to interact again
-        });
+      video.play().catch(() => {
+        // Autoplay might be blocked; user will need to interact again
+      });
     } else {
       video.pause();
     }
   }, [isPlaying, videoUrl]);
 
   return (
-    <div className="space-y-1.5">
+    <div className="flex-1 min-h-0 flex flex-col space-y-1.5">
       {/* Repeat Mode Banner */}
       {isRepeating && (
-        <div className="bg-green-600 text-white px-4 py-1.5 rounded-md flex items-center justify-center gap-2 animate-pulse-subtle shadow-lg">
+        <div className="bg-green-600 text-white px-4 py-1.5 rounded-md flex items-center justify-center gap-2 animate-pulse-subtle shadow-lg flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+              <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
             </span>
             <span>REPEAT MODE ACTIVE</span>
             <span className="mx-2">•</span>
@@ -67,8 +67,9 @@ export function VideoPlayer({
         </div>
       )}
 
+      {/* Video container fills remaining space of this component */}
       <div
-        className={`relative w-full h-[80vh] bg-black overflow-hidden transition-all ${
+        className={`relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
         }`}
         style={{ borderRadius: "6px" }}
@@ -80,7 +81,6 @@ export function VideoPlayer({
           className="w-full h-full object-contain bg-black"
           controls={false}
           loop={isRepeating}
-          // We do not rely on autoPlay alone; we control play()/pause() via isPlaying effect
           onEnded={onEnded}
         />
 
