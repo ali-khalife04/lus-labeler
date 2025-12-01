@@ -28,23 +28,17 @@ const labelConfig = {
 
 type SizeKey = "sm" | "md" | "lg";
 
-const sizeConfig: Record<
-  SizeKey,
-  {
-    container: string;
-    labelFontSize: number;
-    descFontSize: number;
-  }
-> = {
+const sizeConfig = {
   sm: {
     container: "px-3 py-1",
-    labelFontSize: 14,
-    descFontSize: 11,
+    label: "text-xs",
+    description: "text-[10px]",
   },
   md: {
-    container: "px-6 py-2",
-    labelFontSize: 20,
-    descFontSize: 14,
+    container: "px-8 py-2",
+    label: "text-sm",
+    description: "text-xs",
+  },
   },
   lg: {
     container: "",
