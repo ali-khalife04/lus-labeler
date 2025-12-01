@@ -29,18 +29,18 @@ const labelConfig = {
 const sizeConfig = {
   sm: {
     container: "px-3 py-1",
-    label: "text-xs",
-    description: "text-[10px]",
+    label: "text-lg",
+    description: "text-sm",
   },
   md: {
     container: "px-8 py-2",
-    label: "text-sm",
-    description: "text-xs",
+    label: "text-2xl",
+    description: "text-lg",
   },
   lg: {
     container: "",
-    label: "text-5xl",         // was text-3xl
-    description: "text-5xl",   // was text-lg
+    label: "text-4xl",
+    description: "text-2xl",
   },
 };
 
