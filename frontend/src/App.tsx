@@ -106,11 +106,6 @@ export default function App() {
     null,
   );
 
-  // Frame-aware state
-  const [currentFrame, setCurrentFrame] = useState(0);
-  const [totalFrames, setTotalFrames] = useState(0);
-  const [requestedFrame, setRequestedFrame] = useState<number | null>(null);
-
   const isPlaying = mode !== "idle";
   const isRepeating = mode === "repeat";
 
@@ -248,12 +243,6 @@ export default function App() {
         setSequences(newSequences);
         setCurrentSequenceIndex(0);
         setMode("idle");
-
-        // reset frame-related state
-        setCurrentFrame(0);
-        setTotalFrames(0);
-        setRequestedFrame(null);
-
         if (videoRef.current) {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
@@ -263,9 +252,6 @@ export default function App() {
         setSequences([]);
         setCurrentSequenceIndex(0);
         setMode("idle");
-        setCurrentFrame(0);
-        setTotalFrames(0);
-        setRequestedFrame(null);
       }
     };
 
@@ -355,27 +341,24 @@ export default function App() {
   // ===========================
   // Selection handlers
   // ===========================
-  const resetVideoAndFrames = () => {
+  const handlePatientChange = (patientId: string) => {
+    setCurrentPatientId(patientId);
+    setCurrentSequenceIndex(0);
     setMode("idle");
-    setCurrentFrame(0);
-    setTotalFrames(0);
-    setRequestedFrame(null);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
   };
 
-  const handlePatientChange = (patientId: string) => {
-    setCurrentPatientId(patientId);
-    setCurrentSequenceIndex(0);
-    resetVideoAndFrames();
-  };
-
   const handleClassFilter = (classType: LabelType) => {
     setCurrentClass(classType);
     setCurrentSequenceIndex(0);
-    resetVideoAndFrames();
+    setMode("idle");
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
   };
 
   const handleSequenceChange = (sequenceNum: number) => {
@@ -383,7 +366,11 @@ export default function App() {
     if (sequenceNum < 1 || sequenceNum > totalSequences) return;
 
     setCurrentSequenceIndex(sequenceNum - 1);
-    resetVideoAndFrames();
+    setMode("idle");
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
   };
 
   // ===========================
@@ -418,7 +405,11 @@ export default function App() {
     if (!hasSequences) return;
     if (safeSequenceIndex > 0) {
       setCurrentSequenceIndex((prev) => prev - 1);
-      resetVideoAndFrames();
+      setMode("idle");
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
     }
   };
 
@@ -426,7 +417,11 @@ export default function App() {
     if (!hasSequences) return;
     if (safeSequenceIndex < totalSequences - 1) {
       setCurrentSequenceIndex((prev) => prev + 1);
-      resetVideoAndFrames();
+      setMode("idle");
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+      }
     }
   };
 
@@ -436,7 +431,6 @@ export default function App() {
     if (mode === "play-all") {
       if (safeSequenceIndex < totalSequences - 1) {
         setCurrentSequenceIndex((prev) => prev + 1);
-        resetVideoAndFrames();
       } else {
         // Last video of the class, stop
         setMode("idle");
@@ -560,7 +554,12 @@ export default function App() {
     setCurrentPatientId(entry.patientId);
     setCurrentClass(entry.originalClass);
     setPendingHistoryJump(entry.sequenceNumber);
-    resetVideoAndFrames();
+    setMode("idle");
+
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
   };
 
   // When we have a pending history jump and sequences are loaded, jump to the right index
@@ -751,7 +750,7 @@ export default function App() {
   // Main layout
   // ===========================
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+  <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <header className="border-b border-gray-200 px-4 py-2 flex-none">
         <div className="flex items-center justify-between">
@@ -828,6 +827,8 @@ export default function App() {
 
       {/* Main content */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
+
+
         {/* Left panel */}
         <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 h-full overflow-y-auto space-y-2.5">
           <PatientSelector
@@ -847,6 +848,7 @@ export default function App() {
 
         {/* Center panel */}
         <div className="flex-1 min-w-0 px-3 py-4 flex flex-col relative">
+
           {jumpHighlight && (
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-green-600 text-white px-6 py-2 rounded-md shadow-lg animate-pulse-subtle">
               <div className="flex items-center gap-2">
@@ -872,16 +874,6 @@ export default function App() {
                   videoRef.current = ref;
                 }}
                 onEnded={handleVideoEnded}
-                fps={30} // or 59 if you prefer your original FPS
-                requestedFrame={requestedFrame}
-                onFrameInfo={({ totalFrames }) => {
-                  setTotalFrames(totalFrames);
-                  setCurrentFrame(0);
-                  setRequestedFrame(null);
-                }}
-                onFrameUpdate={(frameIndex) => {
-                  setCurrentFrame(frameIndex);
-                }}
               />
 
               <NavigationControls
@@ -902,12 +894,6 @@ export default function App() {
                 totalSequences={totalSequences}
                 onPrevious={handlePrevSequence}
                 onNext={handleNextSequence}
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-                onFrameChange={(frameIndex) => {
-                  setRequestedFrame(frameIndex);
-                  setCurrentFrame(frameIndex);
-                }}
               />
 
               <CorrectionSelector
