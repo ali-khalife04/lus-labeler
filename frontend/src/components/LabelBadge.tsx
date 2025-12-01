@@ -1,3 +1,5 @@
+import React from "react";
+
 interface LabelBadgeProps {
   label: "H-LUS" | "C-LUS" | "I-LUS";
   showDescription?: boolean;
@@ -5,8 +7,6 @@ interface LabelBadgeProps {
   className?: string;
   size?: "sm" | "md" | "lg";
 }
-
-
 
 const labelConfig = {
   "H-LUS": {
@@ -26,22 +26,30 @@ const labelConfig = {
   },
 };
 
-const sizeConfig = {
+type SizeKey = "sm" | "md" | "lg";
+
+const sizeConfig: Record<
+  SizeKey,
+  {
+    container: string;
+    labelFontSize: number;
+    descFontSize: number;
+  }
+> = {
   sm: {
     container: "px-3 py-1",
-    label: "text-sm",
-    description: "text-xs",
+    labelFontSize: 14,
+    descFontSize: 11,
   },
   md: {
-    container: "px-8 py-2",
-    label: "text-xl",
-    description: "text-sm",
+    container: "px-6 py-2",
+    labelFontSize: 20,
+    descFontSize: 14,
   },
   lg: {
     container: "",
-    // use arbitrary font size values so it is obviously big
-    label: "text-[48px]",        // huge
-    description: "text-[20px]",  // also bigger
+    labelFontSize: 40, // increase if you want it even bigger
+    descFontSize: 20,
   },
 };
 
@@ -54,7 +62,7 @@ export function LabelBadge({
 }: LabelBadgeProps) {
   const config = labelConfig[label];
   const colorClass = dimmed ? config.dimmedColor : config.color;
-  const sizeClasses = sizeConfig[size];
+  const sizeCfg = sizeConfig[size];
 
   const bigStyle =
     size === "lg"
@@ -67,16 +75,20 @@ export function LabelBadge({
 
   return (
     <div
-      className={`rounded-md ${colorClass} ${sizeClasses.container} inline-flex items-center justify-center ${className}`}
+      className={`rounded-md ${colorClass} ${sizeCfg.container} inline-flex items-center justify-center ${className}`}
       style={bigStyle}
     >
       <div className="flex flex-col items-center gap-0.5">
-        <span className={`${sizeClasses.label} font-medium whitespace-nowrap`}>
+        <span
+          className="font-medium whitespace-nowrap"
+          style={{ fontSize: sizeCfg.labelFontSize }}
+        >
           {label}
         </span>
         {showDescription && (
           <span
-            className={`${sizeClasses.description} opacity-90 whitespace-nowrap`}
+            className="opacity-90 whitespace-nowrap"
+            style={{ fontSize: sizeCfg.descFontSize }}
           >
             {config.description}
           </span>
