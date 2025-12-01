@@ -750,7 +750,7 @@ export default function App() {
   // Main layout
   // ===========================
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-white">
+  <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <header className="border-b border-gray-200 px-4 py-2 flex-none">
         <div className="flex items-center justify-between">
@@ -826,7 +826,8 @@ export default function App() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex">
+
         {/* Left panel */}
         <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 h-full overflow-y-auto space-y-2.5">
           <PatientSelector
@@ -845,7 +846,8 @@ export default function App() {
         </div>
 
         {/* Center panel */}
-        <div className="flex-1 min-w-0 min-h-0 px-3 py-2 flex flex-col relative overflow-hidden">
+        <div className="flex-1 min-w-0 px-3 py-4 flex flex-col relative">
+
           {jumpHighlight && (
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-green-600 text-white px-6 py-2 rounded-md shadow-lg animate-pulse-subtle">
               <div className="flex items-center gap-2">
