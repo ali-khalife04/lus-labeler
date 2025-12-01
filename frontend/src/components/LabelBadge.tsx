@@ -40,7 +40,7 @@ const sizeConfig = {
   lg: {
     container: "",
     label: "text-5xl",         // was text-3xl
-    description: "text-2xl",   // was text-lg
+    description: "text-5xl",   // was text-lg
   },
 };
 
