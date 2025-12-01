@@ -750,7 +750,7 @@ export default function App() {
   // Main layout
   // ===========================
   return (
-  <div className="min-h-screen flex flex-col bg-white">
+  <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <header className="border-b border-gray-200 px-4 py-2 flex-none">
         <div className="flex items-center justify-between">
@@ -826,7 +826,8 @@ export default function App() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+
 
         {/* Left panel */}
         <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 h-full overflow-y-auto space-y-2.5">

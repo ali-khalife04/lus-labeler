@@ -2376,11 +2376,7 @@ html {
 
 
 html,
-body {
-  height: 100%;
-  overflow: hidden !important;   /* absolutely no page scrollbar */
-}
-
+body,
 #root {
   height: 100%;
 }

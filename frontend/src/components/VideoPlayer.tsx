@@ -69,9 +69,10 @@ export function VideoPlayer({
 
       {/* Video container fills remaining space of this component */}
       <div
-        className={`relative w-full h-[80vh] bg-black overflow-hidden transition-all ${
+        className={`relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
        }`}
+             
         style={{ borderRadius: "6px" }}
       >
         {/* Video Display */}
