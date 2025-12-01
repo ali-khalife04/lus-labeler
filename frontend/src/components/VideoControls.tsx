@@ -18,9 +18,9 @@ interface VideoControlsProps {
   onNext: () => void;
 
   // New frame-related props
-  currentFrame?: number;
-  totalFrames?: number;
-  onFrameChange?: (frameIndex: number) => void;
+  currentFrame: number;
+  totalFrames: number;
+  onFrameChange: (frameIndex: number) => void;
 }
 
 export function VideoControls({
@@ -33,35 +33,51 @@ export function VideoControls({
   totalSequences,
   onPrevious,
   onNext,
-  currentFrame = 0,
-  totalFrames = 0,
+  currentFrame,
+  totalFrames,
   onFrameChange,
 }: VideoControlsProps) {
   // When isPlaying is true, we are either in Play-all or Repeat mode.
-  // In both cases, all controls are locked except Pause.
+  // In both cases, all sequence-navigation controls are locked except Pause.
   const controlsLocked = isPlaying;
 
-  const hasFrameInfo = totalFrames > 0;
+  const maxFrame =
+    totalFrames > 0 ? Math.max(totalFrames - 1, 0) : 0;
+  const safeCurrentFrame =
+    totalFrames > 0 ? Math.min(currentFrame, maxFrame) : 0;
 
-  const sliderMax = hasFrameInfo ? Math.max(totalFrames - 1, 0) : 0;
-  const sliderValue = hasFrameInfo
-    ? Math.min(Math.max(currentFrame, 0), sliderMax)
-    : 0;
-  const displayedFrame = hasFrameInfo ? currentFrame + 1 : 0;
-  const displayedTotalFrames = hasFrameInfo ? totalFrames : 0;
-
-  const handleFrameSliderChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
+  const handleSliderChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    if (!onFrameChange || !hasFrameInfo) return;
-    const value = Number(event.target.value);
-    if (Number.isNaN(value)) return;
-    onFrameChange(value);
+    const value = Number(e.target.value);
+    if (!Number.isNaN(value)) {
+      onFrameChange(value);
+    }
   };
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Top row: sequence + playback controls */}
+    <div className="flex flex-col gap-2">
+      {/* Frame slider */}
+      <div className="flex items-center gap-3 px-2">
+        <div className="text-xs text-gray-600 w-24">
+          Frame:{" "}
+          {totalFrames > 0
+            ? `${safeCurrentFrame + 1}/${totalFrames}`
+            : "-"}
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={maxFrame}
+          step={1}
+          value={safeCurrentFrame}
+          onChange={handleSliderChange}
+          disabled={totalFrames === 0}
+          className="flex-1 cursor-pointer"
+        />
+      </div>
+
+      {/* Main buttons row */}
       <div className="flex items-center justify-center gap-3">
         {/* Sequence Navigation */}
         <div className="flex items-center gap-2 mr-2">
@@ -80,7 +96,9 @@ export function VideoControls({
 
           <button
             onClick={onNext}
-            disabled={controlsLocked || currentSequence === totalSequences}
+            disabled={
+              controlsLocked || currentSequence === totalSequences
+            }
             className="p-2.5 rounded-md hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors border-2 border-gray-300"
             title="Next Sequence"
           >
@@ -126,32 +144,12 @@ export function VideoControls({
           }`}
         >
           <RotateCcw
-            className={`w-5 h-5 ${isRepeating ? "animate-spin-slow" : ""}`}
+            className={`w-5 h-5 ${
+              isRepeating ? "animate-spin-slow" : ""
+            }`}
           />
           Repeat Current Sequence
         </button>
-      </div>
-
-      {/* Frame slider */}
-      <div className="w-full max-w-3xl flex items-center gap-3 px-4">
-        <input
-          type="range"
-          min={0}
-          max={sliderMax}
-          value={sliderValue}
-          onChange={handleFrameSliderChange}
-          disabled={!hasFrameInfo}
-          className="flex-1 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        <div className="whitespace-nowrap text-xs text-gray-700">
-          {hasFrameInfo ? (
-            <>
-              Frame {displayedFrame} / {displayedTotalFrames}
-            </>
-          ) : (
-            "Frame -- / --"
-          )}
-        </div>
       </div>
     </div>
   );
