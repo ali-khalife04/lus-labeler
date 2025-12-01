@@ -29,21 +29,21 @@ const labelConfig = {
 const sizeConfig = {
   sm: {
     container: "px-3 py-1",
-    label: "text-lg",
-    description: "text-sm",
+    label: "text-sm",
+    description: "text-xs",
   },
   md: {
     container: "px-8 py-2",
-    label: "text-2xl",
-    description: "text-lg",
+    label: "text-xl",
+    description: "text-sm",
   },
   lg: {
     container: "",
-    label: "text-4xl",
-    description: "text-2xl",
+    // use arbitrary font size values so it is obviously big
+    label: "text-[48px]",        // huge
+    description: "text-[20px]",  // also bigger
   },
 };
-
 
 export function LabelBadge({
   label,
