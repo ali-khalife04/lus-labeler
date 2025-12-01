@@ -48,7 +48,7 @@ const sizeConfig: Record<
   },
   lg: {
     container: "",
-    labelFontSize: 40, // increase if you want it even bigger
+    labelFontSize: 80, // increase if you want it even bigger
     descFontSize: 20,
   },
 };
