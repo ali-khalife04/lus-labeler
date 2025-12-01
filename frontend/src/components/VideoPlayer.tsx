@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LabelBadge } from "./LabelBadge";
 
 type LabelType = "H-LUS" | "C-LUS" | "I-LUS";
@@ -12,6 +12,12 @@ interface VideoPlayerProps {
   onVideoRef: (ref: HTMLVideoElement | null) => void;
   onEnded: () => void;
   jumpHighlight?: boolean;
+
+  // New props for frame control
+  fps?: number;
+  requestedFrame?: number | null;
+  onFrameInfo?: (info: { duration: number; totalFrames: number; fps: number }) => void;
+  onFrameUpdate?: (frameIndex: number) => void;
 }
 
 export function VideoPlayer({
@@ -23,8 +29,18 @@ export function VideoPlayer({
   onVideoRef,
   onEnded,
   jumpHighlight = false,
+  fps = 30,
+  requestedFrame = null,
+  onFrameInfo,
+  onFrameUpdate,
 }: VideoPlayerProps) {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  const [duration, setDuration] = useState(0);
+  const [internalCurrentFrame, setInternalCurrentFrame] = useState(0);
+  const [internalTotalFrames, setInternalTotalFrames] = useState(0);
+
+  const effectiveFps = fps || 30;
 
   // Expose the video element to the parent (App)
   useEffect(() => {
@@ -40,13 +56,66 @@ export function VideoPlayer({
     if (!video) return;
 
     if (isPlaying) {
-      video.play().catch(() => {
-        // Autoplay might be blocked; user will need to interact again
-      });
+      video
+        .play()
+        .catch(() => {
+          // Autoplay might be blocked
+        });
     } else {
       video.pause();
     }
   }, [isPlaying, videoUrl]);
+
+  // When metadata is loaded, compute duration and total frames
+  const handleLoadedMetadata = () => {
+    const video = localVideoRef.current;
+    if (!video) return;
+
+    const newDuration = video.duration || 0;
+    const totalFrames = Math.max(1, Math.round(newDuration * effectiveFps));
+
+    setDuration(newDuration);
+    setInternalTotalFrames(totalFrames);
+    setInternalCurrentFrame(0);
+
+    if (onFrameInfo) {
+      onFrameInfo({
+        duration: newDuration,
+        totalFrames,
+        fps: effectiveFps,
+      });
+    }
+  };
+
+  // On time update, compute current frame and notify parent
+  const handleTimeUpdate = () => {
+    const video = localVideoRef.current;
+    if (!video) return;
+
+    const currentTime = video.currentTime || 0;
+    const frameIndex = Math.floor(currentTime * effectiveFps);
+
+    setInternalCurrentFrame(frameIndex);
+    if (onFrameUpdate) {
+      onFrameUpdate(frameIndex);
+    }
+  };
+
+  // Seek when parent requests a frame (from slider)
+  useEffect(() => {
+    const video = localVideoRef.current;
+    if (!video) return;
+    if (requestedFrame == null) return;
+    if (!Number.isFinite(requestedFrame)) return;
+
+    const targetTime = requestedFrame / effectiveFps;
+    if (!Number.isFinite(targetTime)) return;
+
+    const clampedTime =
+      duration > 0 ? Math.min(Math.max(targetTime, 0), duration) : targetTime;
+
+    video.currentTime = clampedTime;
+  }, [requestedFrame, effectiveFps, duration]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col space-y-1.5">
@@ -67,12 +136,12 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Video container fills remaining space of this component */}
+      {/* Video container */}
       <div
-        className={`relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all ${
-          jumpHighlight ? "jump-highlight-pulse" : ""
-       }`}
-             
+        className={
+          "relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all " +
+          (jumpHighlight ? "jump-highlight-pulse" : "")
+        }
         style={{ borderRadius: "6px" }}
       >
         {/* Video Display */}
@@ -83,7 +152,20 @@ export function VideoPlayer({
           controls={false}
           loop={isRepeating}
           onEnded={onEnded}
+          onLoadedMetadata={handleLoadedMetadata}
+          onTimeUpdate={handleTimeUpdate}
         />
+
+        {/* Frame overlay */}
+        <div className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
+          {internalTotalFrames > 0 ? (
+            <span>
+              Frame {internalCurrentFrame + 1} / {internalTotalFrames}
+            </span>
+          ) : (
+            <span>Frame -- / --</span>
+          )}
+        </div>
 
         {/* Label Badges */}
         {!userCorrection ? (
