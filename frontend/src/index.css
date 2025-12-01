@@ -2371,13 +2371,14 @@ html {
 
 
 
+
+
+
+
 html,
 body {
   height: 100%;
-}
-
-body {
-  overflow: hidden; /* no global scrollbar */
+  overflow: hidden !important;   /* absolutely no page scrollbar */
 }
 
 #root {
