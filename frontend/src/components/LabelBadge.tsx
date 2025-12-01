@@ -39,7 +39,6 @@ const sizeConfig = {
     label: "text-sm",
     description: "text-xs",
   },
-  },
   lg: {
     container: "",
     labelFontSize: 40, // increase if you want it even bigger
