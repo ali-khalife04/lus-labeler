@@ -432,7 +432,6 @@ export default function App() {
       if (safeSequenceIndex < totalSequences - 1) {
         setCurrentSequenceIndex((prev) => prev + 1);
       } else {
-        // Last video of the class, stop
         setMode("idle");
       }
     }
@@ -621,6 +620,39 @@ export default function App() {
     });
   };
 
+  // ===========================
+  // Apply saved history to sequences on load
+  // ===========================
+  useEffect(() => {
+    if (!currentUser || !currentPatientId || !hasSequences) return;
+
+    const historyForUser = userHistory[currentUser] || [];
+    if (historyForUser.length === 0) return;
+
+    setSequences((prev) => {
+      if (prev.length === 0) return prev;
+
+      const updated = prev.map((seq) => ({
+        ...seq,
+        userCorrections: { ...seq.userCorrections },
+      }));
+
+      for (const entry of historyForUser) {
+        if (
+          entry.patientId === currentPatientId &&
+          entry.originalClass === currentClass
+        ) {
+          const idx = entry.sequenceNumber - 1; // sequenceNumber is 1-based
+          if (idx >= 0 && idx < updated.length) {
+            updated[idx].userCorrections[currentUser] = entry.updatedLabel;
+          }
+        }
+      }
+
+      return updated;
+    });
+  }, [currentUser, currentPatientId, currentClass, userHistory, hasSequences]);
+
   const handleLogout = () => {
     setCurrentUser(null);
     setShowChangePassword(false);
@@ -750,7 +782,7 @@ export default function App() {
   // Main layout
   // ===========================
   return (
-  <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
       {/* Header */}
       <header className="border-b border-gray-200 px-4 py-2 flex-none">
         <div className="flex items-center justify-between">
@@ -827,8 +859,6 @@ export default function App() {
 
       {/* Main content */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-
-
         {/* Left panel */}
         <div className="w-50 border-r border-gray-200 p-2.5 flex-shrink-0 h-full overflow-y-auto space-y-2.5">
           <PatientSelector
@@ -848,7 +878,6 @@ export default function App() {
 
         {/* Center panel */}
         <div className="flex-1 min-w-0 px-3 py-4 flex flex-col relative">
-
           {jumpHighlight && (
             <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 bg-green-600 text-white px-6 py-2 rounded-md shadow-lg animate-pulse-subtle">
               <div className="flex items-center gap-2">
