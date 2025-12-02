@@ -1,5 +1,6 @@
 from typing import List, Optional
 import hashlib
+from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,33 +13,34 @@ from database import Base, SessionLocal, engine
 
 from drive_datasource import get_drive_datasource
 
-# Create tables if they don't exist yet (users + history)
+# Create tables (works for SQLite local or Postgres on Render)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="LUS Labeler Backend",
     description="Backend for LUS labeler (history, users, and Drive-backed data).",
-    version="0.2.0",
+    version="0.3.0",
 )
 
-# CORS (dev-friendly: allow all origins)
+# ------------------
+# CORS
+# ------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten for production
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# =====================
+# ------------------
 # Password hashing
-# =====================
+# ------------------
 
-PASSWORD_SALT = "lus-labeler-demo-salt"  # any constant string
+PASSWORD_SALT = "lus-labeler-demo-salt"
 
 
 def hash_password(password: str) -> str:
-    # Simple salted SHA-256 hash for this local tool
     data = (PASSWORD_SALT + password).encode("utf-8")
     return hashlib.sha256(data).hexdigest()
 
@@ -46,6 +48,10 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return hash_password(plain_password) == hashed_password
 
+
+# ------------------
+# DB dependency
+# ------------------
 
 def get_db():
     db = SessionLocal()
@@ -61,202 +67,131 @@ def health():
 
 
 # ====================================================
-# PATIENT / CLASS / VIDEO ENDPOINTS (Google Drive)
+# GOOGLE DRIVE DATA ENDPOINTS
 # ====================================================
 
-@app.get(
-    "/api/patients",
-    response_model=List[schemas.PatientOut],
-)
+@app.get("/api/patients", response_model=List[schemas.PatientOut])
 def api_list_patients():
-    """
-    List all patients from Google Drive.
-
-    Each direct subfolder of the configured Drive root folder
-    is treated as a patient. We return objects with:
-
-      {
-        "patient_id": "<folder name>",
-        "display_name": "<folder name>"
-      }
-
-    which matches what the frontend expects.
-    """
     ds = get_drive_datasource()
-    patient_names = ds.list_patients()  # e.g. ["Patient_1", "Patient_2", ...]
-    return [
-        schemas.PatientOut(patient_id=name, display_name=name)
-        for name in patient_names
-    ]
+    patient_names = ds.list_patients()
+    return [schemas.PatientOut(patient_id=name, display_name=name) for name in patient_names]
 
 
-@app.get(
-    "/api/patients/{patient_id}/classes",
-    response_model=List[str],
-)
+@app.get("/api/patients/{patient_id}/classes", response_model=List[str])
 def api_list_classes_for_patient(patient_id: str):
-    """
-    List classes for a given patient from Google Drive.
-
-    Inside each patient folder we expect exactly three subfolders:
-    H-LUS, C-LUS, I-LUS.
-    """
     ds = get_drive_datasource()
     classes = ds.list_classes(patient_id)
     if not classes:
-        # If patient_id is invalid or has no classes, we treat as 404.
         raise HTTPException(status_code=404, detail="Patient or classes not found")
     return classes
 
 
 @app.get("/api/patients/{patient_id}/classes/{class_id}/videos")
 def api_list_videos_for_patient_class(patient_id: str, class_id: str):
-    """
-    List videos for a given patient + class from Google Drive.
-
-    Response format:
-    [
-        {
-            "file_name": "class0_window0.mp4",
-            "url": "/api/videos/<drive_file_id>"
-        },
-        ...
-    ]
-
-    The frontend will prefix with API_BASE_URL and feed this into
-    the <video> element src.
-    """
     ds = get_drive_datasource()
     videos = ds.list_videos(patient_id, class_id)
     if not videos:
-        # Could be either invalid patient/class or simply empty class.
-        # We return an empty list instead of 404 so UI can show "No sequences".
         return []
-
-    return [
-        {
-            "file_name": v.file_name,
-            "url": f"/api/videos/{v.file_id}",
-        }
-        for v in videos
-    ]
+    return [{"file_name": v.file_name, "url": f"/api/videos/{v.file_id}"} for v in videos]
 
 
 @app.get("/api/videos/{file_id}")
 def api_stream_video(file_id: str):
-    """
-    Stream a video file from Google Drive through the backend.
-
-    The frontend <video> tag uses this as the src attribute.
-    """
     ds = get_drive_datasource()
     chunk_iter = ds.download_video_stream(file_id)
-
-    # If you want, you could add rudimentary error handling here
-    # (e.g. try/except around download_video_stream to return 404).
     return StreamingResponse(chunk_iter, media_type="video/mp4")
 
 
-# =====================
-# HISTORY ENDPOINTS
-# =====================
+# ====================================================
+# HISTORY (UP-SERT LOGIC)
+# ====================================================
 
-@app.get(
-    "/history",
-    response_model=List[schemas.HistoryEntryOut],
-)
+@app.get("/history", response_model=List[schemas.HistoryEntryOut])
 def list_history(
     annotator: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """
-    List all history entries, newest first.
-    Optionally filter by annotator=?.
+    Returns ONE record per (patient_id, sequence_id), newest first.
     """
-    query = db.query(models.HistoryEntry).order_by(models.HistoryEntry.id.desc())
+    query = db.query(models.HistoryEntry)
+
     if annotator:
         query = query.filter(models.HistoryEntry.annotator == annotator)
-    return query.all()
+
+    return query.order_by(models.HistoryEntry.timestamp.desc()).all()
 
 
-@app.post(
-    "/history",
-    response_model=schemas.HistoryEntryOut,
-    status_code=201,
-)
-def add_history(
-    entry: schemas.HistoryEntryCreate,
-    db: Session = Depends(get_db),
-):
+@app.post("/history", response_model=schemas.HistoryEntryOut, status_code=201)
+def upsert_history(entry: schemas.HistoryEntryCreate, db: Session = Depends(get_db)):
     """
-    Add a new history entry.
+    Updates the existing record for patient+sequence or creates one if missing.
+    Only the latest correction is stored.
     """
-    db_entry = models.HistoryEntry(
+    existing = (
+        db.query(models.HistoryEntry)
+        .filter(
+            models.HistoryEntry.patient_id == entry.patient_id,
+            models.HistoryEntry.sequence_id == entry.sequence_id,
+        )
+        .first()
+    )
+
+    if existing:
+        existing.previous_label = entry.previous_label
+        existing.updated_label = entry.updated_label
+        existing.annotator = entry.annotator
+        existing.timestamp = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    new_entry = models.HistoryEntry(
         patient_id=entry.patient_id,
         sequence_id=entry.sequence_id,
         previous_label=entry.previous_label,
         updated_label=entry.updated_label,
         annotator=entry.annotator,
+        timestamp=datetime.utcnow(),
     )
-    db.add(db_entry)
+
+    db.add(new_entry)
     db.commit()
-    db.refresh(db_entry)
-    return db_entry
+    db.refresh(new_entry)
+    return new_entry
 
 
 @app.delete("/history/{entry_id}")
-def delete_history(
-    entry_id: int,
-    db: Session = Depends(get_db),
-):
+def delete_history(entry_id: int, db: Session = Depends(get_db)):
     """
-    Delete a history entry by ID.
+    Delete a stored history entry (rarely needed since there's only one per sequence).
     """
-    db_entry = (
-        db.query(models.HistoryEntry)
-        .filter(models.HistoryEntry.id == entry_id)
-        .first()
-    )
-    if not db_entry:
+    record = db.query(models.HistoryEntry).filter(models.HistoryEntry.id == entry_id).first()
+    if not record:
         raise HTTPException(status_code=404, detail="History entry not found")
 
-    db.delete(db_entry)
+    db.delete(record)
     db.commit()
     return {"ok": True}
 
 
-# =====================
-# USER ENDPOINTS
-# =====================
+# ====================================================
+# USER MANAGEMENT
+# ====================================================
 
-@app.post(
-    "/users",
-    response_model=schemas.UserOut,
-    status_code=201,
-)
-def create_user(
-    user: schemas.UserCreate,
-    db: Session = Depends(get_db),
-):
-    """
-    Create a new user. Password is stored as a salted SHA-256 hash.
-    """
-    existing = (
-        db.query(models.User)
-        .filter(models.User.username == user.username)
-        .first()
-    )
-    if existing:
+@app.post("/users", response_model=schemas.UserOut, status_code=201)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    if db.query(models.User).filter(models.User.username == user.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    user_obj = models.User(
+    obj = models.User(
         username=user.username,
         password_hash=hash_password(user.password),
     )
-    db.add(user_obj)
+    db.add(obj)
     db.commit()
-    db.refresh(user_obj)
-    return user_obj
+    db.refresh(obj)
+    return obj
 
 
 @app.get("/users", response_model=List[schemas.UserOut])
@@ -265,19 +200,9 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @app.delete("/users")
-def delete_user(
-    payload: schemas.UserDelete,
-    db: Session = Depends(get_db),
-):
-    """
-    Delete a user if the provided password matches.
-    """
-    user_obj = (
-        db.query(models.User)
-        .filter(models.User.username == payload.username)
-        .first()
-    )
-    if user_obj is None:
+def delete_user(payload: schemas.UserDelete, db: Session = Depends(get_db)):
+    user_obj = db.query(models.User).filter(models.User.username == payload.username).first()
+    if not user_obj:
         raise HTTPException(status_code=404, detail="User not found")
 
     if not verify_password(payload.password, user_obj.password_hash):
@@ -288,44 +213,23 @@ def delete_user(
     return {"detail": "User deleted"}
 
 
-# =====================
-# AUTH ENDPOINTS
-# =====================
+# ====================================================
+# AUTH
+# ====================================================
 
 @app.post("/auth/login")
 def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
-    """
-    Check username + password against stored users.
-    """
-    user_obj = (
-        db.query(models.User)
-        .filter(models.User.username == payload.username)
-        .first()
-    )
-    if user_obj is None:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    if not verify_password(payload.password, user_obj.password_hash):
+    user_obj = db.query(models.User).filter(models.User.username == payload.username).first()
+    if not user_obj or not verify_password(payload.password, user_obj.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return {"detail": "ok"}
 
 
 @app.post("/auth/change-password", response_model=schemas.Message)
-def change_password(
-    payload: schemas.ChangePasswordRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Change the password for a given user.
-    Requires correct old_password.
-    """
-    user_obj = (
-        db.query(models.User)
-        .filter(models.User.username == payload.username)
-        .first()
-    )
-    if user_obj is None:
+def change_password(payload: schemas.ChangePasswordRequest, db: Session = Depends(get_db)):
+    user_obj = db.query(models.User).filter(models.User.username == payload.username).first()
+    if not user_obj:
         raise HTTPException(status_code=404, detail="User not found")
 
     if not verify_password(payload.old_password, user_obj.password_hash):
@@ -333,6 +237,5 @@ def change_password(
 
     user_obj.password_hash = hash_password(payload.new_password)
     db.commit()
-
     return {"detail": "Password updated successfully"}
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String, UniqueConstraint
 
 from database import Base
 
@@ -21,12 +21,21 @@ class HistoryEntry(Base):
     __tablename__ = "history_entries"
 
     id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(String, index=True)
-    sequence_id = Column(String, index=True)
+
+    # A sequence is uniquely identified by (patient_id, sequence_id)
+    patient_id = Column(String, index=True, nullable=False)
+    sequence_id = Column(String, index=True, nullable=False)
+
     previous_label = Column(String, index=True)
     updated_label = Column(String, index=True)
     annotator = Column(String, index=True)
+
+    # This will store the time of the latest update
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("patient_id", "sequence_id", name="uq_patient_sequence"),
+    )
 
 
 class User(Base):
