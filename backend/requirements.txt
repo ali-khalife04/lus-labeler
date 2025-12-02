@@ -12,3 +12,4 @@ sqlalchemy
 alembic
 python-dotenv
 pydantic-settings
+psycopg2-binary>=2.9
