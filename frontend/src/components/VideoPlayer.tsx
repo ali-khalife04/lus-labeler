@@ -12,6 +12,11 @@ interface VideoPlayerProps {
   onVideoRef: (ref: HTMLVideoElement | null) => void;
   onEnded: () => void;
   jumpHighlight?: boolean;
+
+  // NEW props for frame-aware UI
+  currentFrameIndex: number; // 0-based
+  totalFrames: number;
+  onTimeUpdate: (currentTime: number) => void;
 }
 
 export function VideoPlayer({
@@ -23,6 +28,9 @@ export function VideoPlayer({
   onVideoRef,
   onEnded,
   jumpHighlight = false,
+  currentFrameIndex,
+  totalFrames,
+  onTimeUpdate,
 }: VideoPlayerProps) {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -48,6 +56,12 @@ export function VideoPlayer({
     }
   }, [isPlaying, videoUrl]);
 
+  // 1-based frame index for display, clamped to [1, totalFrames]
+  const displayFrame = Math.min(
+    totalFrames,
+    Math.max(1, currentFrameIndex + 1),
+  );
+
   return (
     <div className="flex-1 min-h-0 flex flex-col space-y-1.5">
       {/* Repeat Mode Banner */}
@@ -71,8 +85,7 @@ export function VideoPlayer({
       <div
         className={`relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
-       }`}
-             
+        }`}
         style={{ borderRadius: "6px" }}
       >
         {/* Video Display */}
@@ -83,6 +96,10 @@ export function VideoPlayer({
           controls={false}
           loop={isRepeating}
           onEnded={onEnded}
+          onTimeUpdate={(e) => {
+            const t = e.currentTarget.currentTime || 0;
+            onTimeUpdate(t);
+          }}
         />
 
         {/* Label Badges */}
@@ -117,6 +134,11 @@ export function VideoPlayer({
             </div>
           </>
         )}
+
+        {/* Frame Counter Overlay */}
+        <div className="absolute bottom-3 right-4 bg-black/60 text-white text-xs px-2 py-1 rounded">
+          Frame {displayFrame} / {totalFrames}
+        </div>
       </div>
     </div>
   );

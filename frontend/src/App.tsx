@@ -105,6 +105,10 @@ function upsertHistoryEntry(
   return [entry, ...copy]; // insert updated at top
 }
 
+// Frame timing
+const FPS = 10;
+const FRAMES_PER_SEQUENCE = 32;
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
 
@@ -136,6 +140,9 @@ export default function App() {
   const modeRef = useRef<PlaybackMode>("idle");
   const hasSequencesRef = useRef<boolean>(false);
 
+  // Per-sequence frame tracking (0-based index)
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+
   // Change-password UI
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [cpOld, setCpOld] = useState("");
@@ -159,6 +166,14 @@ export default function App() {
   useEffect(() => {
     hasSequencesRef.current = sequences.length > 0;
   }, [sequences.length]);
+
+  // Reset frame index whenever we switch patient, class, or sequence
+  useEffect(() => {
+    setCurrentFrameIndex(0);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+  }, [currentPatientId, currentClass, currentSequenceIndex]);
 
   // ===========================
   // Fetch users
@@ -266,6 +281,7 @@ export default function App() {
         setSequences(newSequences);
         setCurrentSequenceIndex(0);
         setMode("idle");
+        setCurrentFrameIndex(0);
         if (videoRef.current) {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
@@ -275,6 +291,7 @@ export default function App() {
         setSequences([]);
         setCurrentSequenceIndex(0);
         setMode("idle");
+        setCurrentFrameIndex(0);
       }
     };
 
@@ -372,6 +389,7 @@ export default function App() {
     setCurrentPatientId(patientId);
     setCurrentSequenceIndex(0);
     setMode("idle");
+    setCurrentFrameIndex(0);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -382,6 +400,7 @@ export default function App() {
     setCurrentClass(classType);
     setCurrentSequenceIndex(0);
     setMode("idle");
+    setCurrentFrameIndex(0);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -394,6 +413,7 @@ export default function App() {
 
     setCurrentSequenceIndex(sequenceNum - 1);
     setMode("idle");
+    setCurrentFrameIndex(0);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -433,6 +453,7 @@ export default function App() {
     if (safeSequenceIndex > 0) {
       setCurrentSequenceIndex((prev) => prev - 1);
       setMode("idle");
+      setCurrentFrameIndex(0);
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
@@ -445,6 +466,7 @@ export default function App() {
     if (safeSequenceIndex < totalSequences - 1) {
       setCurrentSequenceIndex((prev) => prev + 1);
       setMode("idle");
+      setCurrentFrameIndex(0);
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
@@ -462,6 +484,32 @@ export default function App() {
         setMode("idle");
       }
     }
+  };
+
+  // ===========================
+  // Frame tracking + seeking
+  // ===========================
+  const handleVideoTimeUpdate = (currentTimeSeconds: number) => {
+    let frameIndex = Math.floor(currentTimeSeconds * FPS);
+    if (frameIndex < 0) frameIndex = 0;
+    if (frameIndex > FRAMES_PER_SEQUENCE - 1) {
+      frameIndex = FRAMES_PER_SEQUENCE - 1;
+    }
+    setCurrentFrameIndex(frameIndex);
+  };
+
+  const handleFrameSeek = (frameIndex: number) => {
+    if (!videoRef.current) return;
+
+    let clamped = frameIndex;
+    if (clamped < 0) clamped = 0;
+    if (clamped > FRAMES_PER_SEQUENCE - 1) {
+      clamped = FRAMES_PER_SEQUENCE - 1;
+    }
+
+    const targetTime = clamped / FPS;
+    videoRef.current.currentTime = targetTime;
+    setCurrentFrameIndex(clamped);
   };
 
   // ===========================
@@ -587,6 +635,7 @@ export default function App() {
     setCurrentClass(entry.originalClass);
     setPendingHistoryJump(entry.sequenceNumber);
     setMode("idle");
+    setCurrentFrameIndex(0);
 
     if (videoRef.current) {
       videoRef.current.pause();
@@ -787,9 +836,7 @@ export default function App() {
     if (users.length === 0) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-white gap-4">
-          <div className="text-gray-600">
-            No users found in the database.
-          </div>
+          <div className="text-gray-600">No users found in the database.</div>
           <div className="text-sm text-gray-500">
             Create users via POST /users in the backend.
           </div>
@@ -930,7 +977,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-white opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg:white bg-white" />
                 </span>
                 <span>Jumped to Sequence</span>
               </div>
@@ -950,6 +997,9 @@ export default function App() {
                   videoRef.current = ref;
                 }}
                 onEnded={handleVideoEnded}
+                currentFrameIndex={currentFrameIndex}
+                totalFrames={FRAMES_PER_SEQUENCE}
+                onTimeUpdate={handleVideoTimeUpdate}
               />
 
               <NavigationControls
@@ -970,6 +1020,9 @@ export default function App() {
                 totalSequences={totalSequences}
                 onPrevious={handlePrevSequence}
                 onNext={handleNextSequence}
+                currentFrameIndex={currentFrameIndex}
+                totalFrames={FRAMES_PER_SEQUENCE}
+                onFrameChange={handleFrameSeek}
               />
 
               <CorrectionSelector
