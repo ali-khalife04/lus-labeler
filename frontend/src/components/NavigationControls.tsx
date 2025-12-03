@@ -1,38 +1,53 @@
-import { Slider } from './ui/slider';
+import { Slider } from "./ui/slider";
 
 interface NavigationControlsProps {
-  currentSequence: number;
-  totalSequences: number;
+  // Global frame index across all sequences of current patient + class
+  globalFrameIndex: number;   // 0-based
+  totalFrames: number;        // totalSequences * FRAMES_PER_SEQUENCE
   isPlaying?: boolean;
-  onSequenceChange: (sequence: number) => void;
+  onGlobalFrameChange: (frameIndex: number) => void;
   jumpHighlight?: boolean;
 }
 
-export function NavigationControls({ 
-  currentSequence, 
-  totalSequences, 
+export function NavigationControls({
+  globalFrameIndex,
+  totalFrames,
   isPlaying,
-  onSequenceChange,
-  jumpHighlight = false
+  onGlobalFrameChange,
+  jumpHighlight = false,
 }: NavigationControlsProps) {
+  // Slider should always be interactive, even while playing.
+  const maxFrame = totalFrames > 0 ? totalFrames - 1 : 0;
+  const clampedValue =
+    totalFrames > 0
+      ? Math.min(Math.max(globalFrameIndex, 0), maxFrame)
+      : 0;
+
   const handleSliderChange = (value: number[]) => {
-    onSequenceChange(value[0]);
+    const v = value[0];
+    onGlobalFrameChange(v);
   };
 
   return (
-    <div className={`transition-all ${jumpHighlight ? 'jump-highlight-pulse' : ''}`}>
-      {/* Slider with light green styling */}
+    <div
+      className={`transition-all ${
+        jumpHighlight ? "jump-highlight-pulse" : ""
+      }`}
+    >
+      {/* Green slider over all frames */}
       <div className="slider-green">
         <Slider
-          value={[currentSequence]}
+          value={[clampedValue]}
           onValueChange={handleSliderChange}
-          min={1}
-          max={totalSequences}
+          min={0}
+          max={maxFrame}
           step={1}
-          disabled={isPlaying}
+          // keep prop, but we do not disable based on isPlaying
+          disabled={totalFrames === 0}
           className="w-full"
         />
       </div>
     </div>
   );
 }
+

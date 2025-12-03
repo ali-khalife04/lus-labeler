@@ -105,7 +105,7 @@ function upsertHistoryEntry(
   return [entry, ...copy]; // insert updated at top
 }
 
-// Frame timing
+// Fixed timing for all sequences
 const FPS = 10;
 const FRAMES_PER_SEQUENCE = 32;
 
@@ -140,7 +140,7 @@ export default function App() {
   const modeRef = useRef<PlaybackMode>("idle");
   const hasSequencesRef = useRef<boolean>(false);
 
-  // Per-sequence frame tracking (0-based index)
+  // Frame tracking: frame index within current sequence (0..31)
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
 
   // Change-password UI
@@ -166,14 +166,6 @@ export default function App() {
   useEffect(() => {
     hasSequencesRef.current = sequences.length > 0;
   }, [sequences.length]);
-
-  // Reset frame index whenever we switch patient, class, or sequence
-  useEffect(() => {
-    setCurrentFrameIndex(0);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-    }
-  }, [currentPatientId, currentClass, currentSequenceIndex]);
 
   // ===========================
   // Fetch users
@@ -311,6 +303,11 @@ export default function App() {
       ? currentSequence.userCorrections[currentUser]
       : undefined;
 
+  // Global frames across this patient + class
+  const totalFramesGlobal = totalSequences * FRAMES_PER_SEQUENCE;
+  const globalFrameIndex =
+    safeSequenceIndex * FRAMES_PER_SEQUENCE + currentFrameIndex;
+
   // ===========================
   // Keyboard shortcuts
   // ===========================
@@ -368,7 +365,6 @@ export default function App() {
         const mapped: HistoryEntry[] = (data || []).map((e: any) =>
           mapBackendHistoryEntry(e),
         );
-        // Backend already returns one row per sequence, but we can still enforce upsert semantics
         const deduped = mapped.reduce<HistoryEntry[]>((acc, entry) => {
           return upsertHistoryEntry(acc, entry);
         }, []);
@@ -480,10 +476,12 @@ export default function App() {
     if (mode === "play-all") {
       if (safeSequenceIndex < totalSequences - 1) {
         setCurrentSequenceIndex((prev) => prev + 1);
+        setCurrentFrameIndex(0);
       } else {
         setMode("idle");
       }
     }
+    // In repeat mode, the <video> has loop=true so onEnded is not fired.
   };
 
   // ===========================
@@ -498,18 +496,30 @@ export default function App() {
     setCurrentFrameIndex(frameIndex);
   };
 
-  const handleFrameSeek = (frameIndex: number) => {
-    if (!videoRef.current) return;
+  const handleGlobalFrameChange = (frameIndexGlobal: number) => {
+    if (!hasSequences) return;
+    if (totalFramesGlobal === 0) return;
 
-    let clamped = frameIndex;
+    let clamped = frameIndexGlobal;
     if (clamped < 0) clamped = 0;
-    if (clamped > FRAMES_PER_SEQUENCE - 1) {
-      clamped = FRAMES_PER_SEQUENCE - 1;
+    if (clamped > totalFramesGlobal - 1) {
+      clamped = totalFramesGlobal - 1;
     }
 
-    const targetTime = clamped / FPS;
-    videoRef.current.currentTime = targetTime;
-    setCurrentFrameIndex(clamped);
+    const targetSequenceIndex = Math.floor(clamped / FRAMES_PER_SEQUENCE);
+    const targetLocalFrame = clamped % FRAMES_PER_SEQUENCE;
+
+    setCurrentSequenceIndex(targetSequenceIndex);
+    setCurrentFrameIndex(targetLocalFrame);
+
+    const targetTime = targetLocalFrame / FPS;
+    if (videoRef.current) {
+      try {
+        videoRef.current.currentTime = targetTime;
+      } catch {
+        // ignore
+      }
+    }
   };
 
   // ===========================
@@ -719,7 +729,6 @@ export default function App() {
         entry.patientId === currentPatientId &&
         entry.originalClass === currentClass
       ) {
-        // historyForUser is newest-first, so keep the first we see
         if (!latestBySequence.has(entry.sequenceNumber)) {
           latestBySequence.set(entry.sequenceNumber, entry.updatedLabel);
         }
@@ -836,7 +845,9 @@ export default function App() {
     if (users.length === 0) {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-white gap-4">
-          <div className="text-gray-600">No users found in the database.</div>
+          <div className="text-gray-600">
+            No users found in the database.
+          </div>
           <div className="text-sm text-gray-500">
             Create users via POST /users in the backend.
           </div>
@@ -977,7 +988,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-white opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg:white bg-white" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                 </span>
                 <span>Jumped to Sequence</span>
               </div>
@@ -1003,10 +1014,10 @@ export default function App() {
               />
 
               <NavigationControls
-                currentSequence={safeSequenceIndex + 1}
-                totalSequences={totalSequences}
+                globalFrameIndex={globalFrameIndex}
+                totalFrames={totalFramesGlobal}
                 isPlaying={isPlaying}
-                onSequenceChange={handleSequenceChange}
+                onGlobalFrameChange={handleGlobalFrameChange}
                 jumpHighlight={jumpHighlight}
               />
 
@@ -1020,9 +1031,6 @@ export default function App() {
                 totalSequences={totalSequences}
                 onPrevious={handlePrevSequence}
                 onNext={handleNextSequence}
-                currentFrameIndex={currentFrameIndex}
-                totalFrames={FRAMES_PER_SEQUENCE}
-                onFrameChange={handleFrameSeek}
               />
 
               <CorrectionSelector

@@ -13,10 +13,10 @@ interface VideoPlayerProps {
   onEnded: () => void;
   jumpHighlight?: boolean;
 
-  // NEW props for frame-aware UI
-  currentFrameIndex: number; // 0-based
-  totalFrames: number;
-  onTimeUpdate: (currentTime: number) => void;
+  // Frame overlay + sync
+  currentFrameIndex: number; // 0-based frame index within the sequence
+  totalFrames: number;       // typically 32
+  onTimeUpdate: (currentTimeSeconds: number) => void;
 }
 
 export function VideoPlayer({
@@ -49,18 +49,17 @@ export function VideoPlayer({
 
     if (isPlaying) {
       video.play().catch(() => {
-        // Autoplay might be blocked; user will need to interact again
+        // Autoplay blocked, user will need to interact
       });
     } else {
       video.pause();
     }
   }, [isPlaying, videoUrl]);
 
-  // 1-based frame index for display, clamped to [1, totalFrames]
-  const displayFrame = Math.min(
-    totalFrames,
-    Math.max(1, currentFrameIndex + 1),
-  );
+  // Display frame as 1-based, clamped
+  const displayFrame = totalFrames
+    ? Math.min(totalFrames, Math.max(1, currentFrameIndex + 1))
+    : 0;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col space-y-1.5">
@@ -81,7 +80,7 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Video container fills remaining space of this component */}
+      {/* Video container */}
       <div
         className={`relative w-full flex-1 min-h-0 bg-black overflow-hidden transition-all ${
           jumpHighlight ? "jump-highlight-pulse" : ""
@@ -104,7 +103,6 @@ export function VideoPlayer({
 
         {/* Label Badges */}
         {!userCorrection ? (
-          // No correction - show single label in top-left
           <div className="absolute top-4 left-4">
             <div className="mb-1">
               <span className="text-white text-sm bg-black/50 px-2 py-0.5 rounded">
@@ -114,7 +112,6 @@ export function VideoPlayer({
             <LabelBadge label={originalLabel} size="lg" />
           </div>
         ) : (
-          // Has correction - show Previous (top-left) and Updated (top-right)
           <>
             <div className="absolute top-4 left-4">
               <div className="mb-1">
