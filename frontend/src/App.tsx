@@ -82,6 +82,29 @@ function mapBackendHistoryEntry(e: any): HistoryEntry {
 
 type PlaybackMode = "idle" | "play-all" | "repeat";
 
+// Helper: upsert one history entry per (patientId, sequenceNumber, originalClass, annotator)
+function upsertHistoryEntry(
+  history: HistoryEntry[],
+  entry: HistoryEntry,
+): HistoryEntry[] {
+  const idx = history.findIndex(
+    (h) =>
+      h.patientId === entry.patientId &&
+      h.sequenceNumber === entry.sequenceNumber &&
+      h.originalClass === entry.originalClass &&
+      h.annotator === entry.annotator,
+  );
+
+  if (idx === -1) {
+    // New sequence for this user -> put on top
+    return [entry, ...history];
+  }
+
+  const copy = [...history];
+  copy.splice(idx, 1); // remove old
+  return [entry, ...copy]; // insert updated at top
+}
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
 
@@ -328,9 +351,13 @@ export default function App() {
         const mapped: HistoryEntry[] = (data || []).map((e: any) =>
           mapBackendHistoryEntry(e),
         );
+        // Backend already returns one row per sequence, but we can still enforce upsert semantics
+        const deduped = mapped.reduce<HistoryEntry[]>((acc, entry) => {
+          return upsertHistoryEntry(acc, entry);
+        }, []);
         setUserHistory((prev) => ({
           ...prev,
-          [userName]: mapped,
+          [userName]: deduped,
         }));
       })
       .catch((err) => {
@@ -449,7 +476,7 @@ export default function App() {
 
     if (previousLabel === label) return;
 
-    // Update corrections in local sequence list
+    // Update corrections in local sequence list so VideoPlayer updates immediately
     setSequences((prev) => {
       if (!prev.length) return prev;
       const copy = [...prev];
@@ -503,10 +530,15 @@ export default function App() {
       originalClass: currentSequence.originalLabel,
     };
 
-    setUserHistory((prev) => ({
-      ...prev,
-      [currentUser]: [newEntry, ...(prev[currentUser] || [])],
-    }));
+    // Upsert into userHistory so we keep only one entry per sequence for this user
+    setUserHistory((prev) => {
+      const existing = prev[currentUser] || [];
+      const updatedForUser = upsertHistoryEntry(existing, newEntry);
+      return {
+        ...prev,
+        [currentUser]: updatedForUser,
+      };
+    });
 
     // Persist to backend with the RAW sequence id (without patient number)
     fetch(`${API_BASE_URL}/history`, {
@@ -529,6 +561,7 @@ export default function App() {
         return res.json();
       })
       .then((saved) => {
+        // Replace tempId with real id + timestamp but keep same entry position
         setUserHistory((prev) => {
           const entries = prev[currentUser] || [];
           const updatedEntries = entries.map((e) =>
@@ -629,27 +662,41 @@ export default function App() {
     const historyForUser = userHistory[currentUser] || [];
     if (historyForUser.length === 0) return;
 
+    // Build a map: sequenceNumber -> latest updatedLabel for current patient + class
+    const latestBySequence = new Map<number, LabelType>();
+
+    for (const entry of historyForUser) {
+      if (
+        entry.patientId === currentPatientId &&
+        entry.originalClass === currentClass
+      ) {
+        // historyForUser is newest-first, so keep the first we see
+        if (!latestBySequence.has(entry.sequenceNumber)) {
+          latestBySequence.set(entry.sequenceNumber, entry.updatedLabel);
+        }
+      }
+    }
+
+    if (latestBySequence.size === 0) {
+      return;
+    }
+
     setSequences((prev) => {
       if (prev.length === 0) return prev;
 
-      const updated = prev.map((seq) => ({
-        ...seq,
-        userCorrections: { ...seq.userCorrections },
-      }));
-
-      for (const entry of historyForUser) {
-        if (
-          entry.patientId === currentPatientId &&
-          entry.originalClass === currentClass
-        ) {
-          const idx = entry.sequenceNumber - 1; // sequenceNumber is 1-based
-          if (idx >= 0 && idx < updated.length) {
-            updated[idx].userCorrections[currentUser] = entry.updatedLabel;
-          }
+      return prev.map((seq) => {
+        const corrected = latestBySequence.get(seq.id);
+        if (!corrected) {
+          return seq;
         }
-      }
-
-      return updated;
+        return {
+          ...seq,
+          userCorrections: {
+            ...seq.userCorrections,
+            [currentUser]: corrected,
+          },
+        };
+      });
     });
   }, [currentUser, currentPatientId, currentClass, userHistory, hasSequences]);
 
